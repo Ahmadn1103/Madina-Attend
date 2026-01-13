@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Madina Attend",
   description: "Student attendance system for Madina",
+  icons: {
+    icon: "https://i.ibb.co/zHbqz1p7/favicon.png",
+  },
 };
 
 export default function RootLayout({
