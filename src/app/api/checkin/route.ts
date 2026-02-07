@@ -6,7 +6,7 @@ import {
   logCheckOut,
   type Student,
 } from "@/lib/firestore";
-import { calculateWeekNumber, determineClassType, checkIfLate, calculateLateMinutes } from "@/lib/attendanceLogic";
+import { calculateWeekNumber, determineClassType, calculateLateStatus } from "@/lib/attendanceLogic";
 
 export async function POST(request: NextRequest) {
   console.log("\n🔵 === New Check-In Request ===");
@@ -81,8 +81,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if student is late
-      const isLate = checkIfLate(now, classType);
-      const lateMinutes = isLate ? calculateLateMinutes(now, classType) : null;
+      const lateStatus = calculateLateStatus(now, classType);
+      const isLate = lateStatus.isLate;
+      const lateMinutes = lateStatus.lateMinutes;
 
       console.log(`⏰ Late status: ${isLate ? `YES (${lateMinutes} mins)` : "NO"}`);
 
