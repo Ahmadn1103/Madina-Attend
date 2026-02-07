@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -63,6 +65,18 @@ export default function Home() {
         <div className="absolute -top-1/2 -left-1/2 h-full w-full rounded-full bg-gradient-to-br from-emerald-200/30 to-transparent blur-3xl animate-pulse"></div>
         <div className="absolute -bottom-1/2 -right-1/2 h-full w-full rounded-full bg-gradient-to-tl from-yellow-200/30 to-transparent blur-3xl animate-pulse delay-1000"></div>
       </div>
+
+      {/* Admin Button - Top Right */}
+      <Button
+        onClick={() => router.push("/admin")}
+        variant="outline"
+        className="absolute top-6 right-6 z-20 border-2 border-emerald-600 bg-white/80 backdrop-blur-sm text-emerald-700 font-semibold shadow-lg transition-all hover:bg-emerald-50 hover:shadow-xl"
+      >
+        <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+        Admin
+      </Button>
 
       {/* Main content */}
       <div className="relative z-10 w-full max-w-md">
@@ -195,6 +209,19 @@ export default function Home() {
               className="font-semibold text-emerald-600 hover:text-emerald-700 underline decoration-emerald-300 hover:decoration-emerald-500 transition-colors"
             >
               Salam Consulting
+            </a>
+          </p>
+        </div>
+        <div className="mt-6 text-center text-sm text-gray-600 animate-fade-in">
+          <p>
+            Developed by{" "}
+            <a
+              href="https://www.linkedin.com/in/ahmad-noori1103/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-emerald-600 hover:text-emerald-700 underline decoration-emerald-300 hover:decoration-emerald-500 transition-colors"
+            >
+              Ahmad Noori
             </a>
           </p>
         </div>

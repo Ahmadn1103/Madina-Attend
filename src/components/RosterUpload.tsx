@@ -15,6 +15,7 @@ export default function RosterUpload() {
   const [importResult, setImportResult] = useState<{
     success: number;
     failed: number;
+    skipped?: number;
     errors: string[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +84,7 @@ export default function RosterUpload() {
       setImportResult({
         success: 0,
         failed: parsedData.length,
+        skipped: 0,
         errors: [
           error instanceof Error
             ? error.message
@@ -213,17 +215,23 @@ export default function RosterUpload() {
             </h4>
             <div className="text-sm space-y-1">
               <p className="text-green-700">
-                Successfully imported: {importResult.success}
+                ✅ Successfully imported: {importResult.success}
               </p>
+              {importResult.skipped && importResult.skipped > 0 && (
+                <p className="text-yellow-700">⚠️ Skipped (duplicates): {importResult.skipped}</p>
+              )}
               {importResult.failed > 0 && (
-                <p className="text-red-700">Failed: {importResult.failed}</p>
+                <p className="text-red-700">❌ Failed: {importResult.failed}</p>
               )}
               {importResult.errors.length > 0 && (
-                <ul className="list-disc list-inside space-y-1 text-red-700 mt-2">
-                  {importResult.errors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
+                <div className="mt-2">
+                  <p className="font-semibold text-gray-700 mb-1">Details:</p>
+                  <ul className="list-disc list-inside space-y-1 text-gray-600 max-h-40 overflow-y-auto">
+                    {importResult.errors.map((error, index) => (
+                      <li key={index} className="text-xs">{error}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>

@@ -4,7 +4,7 @@ import { deleteStudent } from "@/lib/firestore";
 /**
  * Delete a student by ID (marks as inactive)
  */
-export async function DELETE(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { studentId } = body;

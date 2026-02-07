@@ -41,3 +41,8 @@ backend/.env
 
 # Setup examples
 env.example
+
+# Excel temp files
+~$*.xlsx
+~$*.xls
+*.tmp

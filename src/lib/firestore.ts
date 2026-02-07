@@ -125,14 +125,46 @@ export async function getStudentById(studentId: string): Promise<Student | null>
  */
 export async function bulkImportStudents(
   students: Array<{ name: string; classType: ClassType }>
-): Promise<{ success: number; failed: number; errors: string[] }> {
+): Promise<{ success: number; failed: number; errors: string[]; skipped: number }> {
   let success = 0;
   let failed = 0;
+  let skipped = 0;
   const errors: string[] = [];
+
+  // Get all existing students once to check for duplicates
+  const existingStudents = await getActiveStudents();
+  const existingNames = new Set(
+    existingStudents.map(s => s.name.toLowerCase().trim())
+  );
+
+  // Track names in current import to prevent duplicates within the same upload
+  const importedNames = new Set<string>();
 
   for (const student of students) {
     try {
+      const nameLower = student.name.toLowerCase().trim();
+
+      // Check if student already exists in database
+      if (existingNames.has(nameLower)) {
+        skipped++;
+        errors.push(
+          `Skipped "${student.name}": Already exists in the system`
+        );
+        continue;
+      }
+
+      // Check if already imported in this batch
+      if (importedNames.has(nameLower)) {
+        skipped++;
+        errors.push(
+          `Skipped "${student.name}": Duplicate in upload file`
+        );
+        continue;
+      }
+
       await addStudent(student.name, student.classType);
+      importedNames.add(nameLower);
+      existingNames.add(nameLower); // Add to existing set for next iterations
       success++;
     } catch (error) {
       failed++;
@@ -142,7 +174,7 @@ export async function bulkImportStudents(
     }
   }
 
-  return { success, failed, errors };
+  return { success, failed, skipped, errors };
 }
 
 /**

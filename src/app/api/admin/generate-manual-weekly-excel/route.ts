@@ -39,19 +39,25 @@ export async function POST(request: NextRequest) {
       : calculateWeekNumber(new Date(startDate));
 
     // Format records for Excel export
-    const formattedRecords = attendanceRecords.map((record) => ({
-      studentId: record.studentId,
-      studentName: record.studentName,
-      date: record.date,
-      checkInTime: record.checkInTime.toDate().toISOString(),
-      checkOutTime: record.checkOutTime
-        ? record.checkOutTime.toDate().toISOString()
-        : null,
-      classType: record.classType,
-      isLate: record.isLate,
-      lateMinutes: record.lateMinutes || 0,
-      weekNumber: record.weekNumber,
-    }));
+    const formattedRecords = attendanceRecords.map((record) => {
+      // Handle Timestamp objects properly
+      const checkInTime = record.checkInTime?.toDate ? record.checkInTime.toDate() : new Date(record.checkInTime as any);
+      const checkOutTime = record.checkOutTime 
+        ? (record.checkOutTime?.toDate ? record.checkOutTime.toDate() : new Date(record.checkOutTime as any))
+        : null;
+
+      return {
+        studentId: record.studentId,
+        studentName: record.studentName,
+        date: record.date,
+        checkInTime: checkInTime.toISOString(),
+        checkOutTime: checkOutTime ? checkOutTime.toISOString() : null,
+        classType: record.classType,
+        isLate: record.isLate,
+        lateMinutes: record.lateMinutes || 0,
+        weekNumber: record.weekNumber,
+      };
+    });
 
     const formattedStudents = students.map((student) => ({
       id: student.id,
