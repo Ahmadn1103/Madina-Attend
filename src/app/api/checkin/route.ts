@@ -63,12 +63,14 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const easternNow = getEasternTime(now);
     const weekNumber = calculateWeekNumber(easternNow);
-    const classType = determineClassType(easternNow);
+    // Use raw time for determineClassType (it converts internally)
+    const classType = determineClassType(now);
 
     console.log(`📅 Date: ${easternNow.toLocaleDateString()}, Week: ${weekNumber}, Class: ${classType}`);
 
     if (actionNormalized === "checkin") {
       // Validate login timing and day type
+      // Pass raw UTC time - validateLogin converts internally
       const validation = validateLogin(student.classType, now);
       
       if (!validation.allowed) {

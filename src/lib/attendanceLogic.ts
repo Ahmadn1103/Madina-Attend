@@ -71,6 +71,9 @@ export function getEasternTime(date?: Date): Date {
 /**
  * Determine if a given date/time is a weekend or weekday class
  * Uses Eastern Time (24-hour format)
+ * 
+ * IMPORTANT: Pass a raw UTC date here - this function converts to Eastern internally.
+ * Do NOT pass an already-converted Eastern time, or the day will be wrong!
  */
 export function determineClassType(date?: Date): "weekend" | "weekday" {
   const easternDate = getEasternTime(date);
@@ -80,7 +83,8 @@ export function determineClassType(date?: Date): "weekend" | "weekday" {
   
   // Debug logging (can be removed in production)
   if (typeof window === 'undefined') { // Only log on server
-    console.log(`[determineClassType] Eastern Time: ${easternDate.toISOString()}, Day: ${dayOfWeek} (0=Sun, 6=Sat), Type: ${isWeekend ? 'weekend' : 'weekday'}`);
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    console.log(`[determineClassType] Eastern: ${dayNames[dayOfWeek]} (day=${dayOfWeek}), Type: ${isWeekend ? 'weekend' : 'weekday'}`);
   }
   
   return isWeekend ? "weekend" : "weekday";
@@ -130,13 +134,18 @@ export function validateLogin(
   studentClassType: ClassType,
   loginTime?: Date
 ): LoginValidationResult {
-  // Get current time in Eastern Time (24-hour format)
-  const easternTime = getEasternTime(loginTime);
+  // Use raw time for functions that convert internally (like determineClassType)
+  const rawTime = loginTime || new Date();
+  
+  // Get current time in Eastern Time (24-hour format) for time-of-day checks
+  const easternTime = getEasternTime(rawTime);
   
   // Determine what type of day it is (weekday or weekend)
-  const currentDayType = determineClassType(easternTime);
+  // IMPORTANT: Pass raw UTC time, NOT the already-converted easternTime!
+  // Passing easternTime would cause a double-conversion, shifting the day backward.
+  const currentDayType = determineClassType(rawTime);
   
-  // Get day name for better error messages
+  // Get day name for better error messages (from the correctly converted Eastern time)
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const dayName = dayNames[easternTime.getDay()];
   
