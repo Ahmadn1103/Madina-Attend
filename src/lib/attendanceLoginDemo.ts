@@ -85,6 +85,14 @@ function demonstrateWeekendLogin() {
   console.log("\nMonday at 12:00 PM ET (wrong day):");
   console.log(result4);
   // Expected: { allowed: false, reason: "You are registered for weekend classes...", dayType: "weekday" }
+  
+  // Example 5: Weekend student trying to login on Monday at midnight (the bug scenario)
+  const mondayAtMidnight = new Date("2026-02-09T00:00:00-05:00"); // Monday, 12:00 AM ET
+  
+  const result5 = validateLogin(weekendStudent, mondayAtMidnight);
+  console.log("\nMonday at 12:00 AM ET (midnight, wrong day):");
+  console.log(result5);
+  // Expected: { allowed: false, reason: "You are registered for WEEKEND classes only...", dayType: "weekday" }
 }
 
 /**

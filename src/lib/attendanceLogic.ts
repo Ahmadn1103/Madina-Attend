@@ -34,11 +34,12 @@ const EASTERN_TIMEZONE = "America/New_York";
 
 /**
  * Get current Eastern Time as a Date object
+ * Always uses 24-hour format for consistency
  */
 export function getEasternTime(date?: Date): Date {
   const now = date || new Date();
   
-  // Convert to Eastern Time using Intl API
+  // Convert to Eastern Time using Intl API with 24-hour format
   const easternTimeString = now.toLocaleString("en-US", {
     timeZone: EASTERN_TIMEZONE,
     year: "numeric",
@@ -47,27 +48,42 @@ export function getEasternTime(date?: Date): Date {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hour12: false, // Force 24-hour format
   });
   
+  // Debug logging (can be removed in production)
+  if (typeof window === 'undefined') { // Only log on server
+    console.log(`[getEasternTime] Input UTC: ${now.toISOString()}, Eastern String: ${easternTimeString}`);
+  }
+  
   // Parse the string back to a Date object
-  // Format: MM/DD/YYYY, HH:mm:ss
+  // Format: MM/DD/YYYY, HH:mm:ss (24-hour)
   const [datePart, timePart] = easternTimeString.split(", ");
   const [month, day, year] = datePart.split("/");
   const [hour, minute, second] = timePart.split(":");
   
-  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
+  // Create date object in UTC to avoid timezone shifts
+  const easternDate = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}`);
+  
+  return easternDate;
 }
 
 /**
  * Determine if a given date/time is a weekend or weekday class
- * Uses Eastern Time
+ * Uses Eastern Time (24-hour format)
  */
 export function determineClassType(date?: Date): "weekend" | "weekday" {
   const easternDate = getEasternTime(date);
   const dayOfWeek = easternDate.getDay();
   // 0 = Sunday, 6 = Saturday
-  return dayOfWeek === 0 || dayOfWeek === 6 ? "weekend" : "weekday";
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  
+  // Debug logging (can be removed in production)
+  if (typeof window === 'undefined') { // Only log on server
+    console.log(`[determineClassType] Eastern Time: ${easternDate.toISOString()}, Day: ${dayOfWeek} (0=Sun, 6=Sat), Type: ${isWeekend ? 'weekend' : 'weekday'}`);
+  }
+  
+  return isWeekend ? "weekend" : "weekday";
 }
 
 /**
@@ -114,19 +130,33 @@ export function validateLogin(
   studentClassType: ClassType,
   loginTime?: Date
 ): LoginValidationResult {
-  // Get current time in Eastern Time
+  // Get current time in Eastern Time (24-hour format)
   const easternTime = getEasternTime(loginTime);
   
   // Determine what type of day it is (weekday or weekend)
   const currentDayType = determineClassType(easternTime);
   
+  // Get day name for better error messages
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayName = dayNames[easternTime.getDay()];
+  
   // Check if student can attend this class type
   const canAttend = canAttendClass(studentClassType, currentDayType);
   
   if (!canAttend) {
+    // Provide clearer error message based on student's class type
+    let reason = "";
+    if (studentClassType === "weekend") {
+      reason = `You are registered for WEEKEND classes only (Saturday & Sunday, 12:00 PM - 1:30 PM). Today is ${dayName}, a weekday. Please come back on the weekend.`;
+    } else if (studentClassType === "weekday") {
+      reason = `You are registered for WEEKDAY classes only (Monday-Friday, 5:30 PM - 7:30 PM). Today is ${dayName}, a weekend day. Please come back on a weekday.`;
+    } else {
+      reason = `You are registered for ${studentClassType} classes. Today is a ${currentDayType} class day.`;
+    }
+    
     return {
       allowed: false,
-      reason: `You are registered for ${studentClassType} classes. Today is a ${currentDayType} class day.`,
+      reason,
       dayType: currentDayType,
     };
   }
@@ -134,7 +164,7 @@ export function validateLogin(
   // Get the schedule for today's class type
   const schedule = CLASS_SCHEDULES[currentDayType];
   
-  // Get current time in minutes since midnight
+  // Get current time in minutes since midnight (24-hour format)
   const currentMinutes = dateToMinutes(easternTime);
   
   // Get class times in minutes since midnight
@@ -142,6 +172,14 @@ export function validateLogin(
   const classEndMinutes = timeToMinutes(schedule.end);
   const earlyLoginMinutes = classStartMinutes - schedule.earlyLoginMinutes;
   const lateThresholdMinutes = classStartMinutes + schedule.lateThresholdMinutes;
+  
+  // Format class start time for display (24-hour format)
+  const classStartTime = schedule.start;
+  const [startHour, startMin] = classStartTime.split(":");
+  const startHourNum = parseInt(startHour);
+  const displayTime = startHourNum >= 12 
+    ? `${startHourNum === 12 ? 12 : startHourNum - 12}:${startMin} PM`
+    : `${startHourNum === 0 ? 12 : startHourNum}:${startMin} AM`;
   
   // Check if it's too early to log in (more than 1 hour before class)
   if (currentMinutes < earlyLoginMinutes) {
@@ -160,7 +198,7 @@ export function validateLogin(
     
     return {
       allowed: false,
-      reason: `Login opens 1 hour before class. Please try again in ${timeMessage}.`,
+      reason: `Login opens 1 hour before class starts at ${displayTime}. Please try again in ${timeMessage}.`,
       dayType: currentDayType,
     };
   }
