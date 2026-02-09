@@ -92,7 +92,9 @@ export async function getActiveStudents(): Promise<Student[]> {
 }
 
 /**
- * Search students by name (case-insensitive partial match)
+ * Search students by first name prefix or exact full name match
+ * - Partial search: "AH" matches "Ahmad Noori" but NOT "Abdirahman Osman"
+ * - Full name: "Ahmad Noori" matches exactly
  */
 export async function searchStudents(searchTerm: string): Promise<Student[]> {
   const allStudents = await getActiveStudents();
@@ -102,9 +104,27 @@ export async function searchStudents(searchTerm: string): Promise<Student[]> {
     return allStudents;
   }
 
-  return allStudents.filter((student) =>
-    student.name.toLowerCase().includes(searchLower)
-  );
+  return allStudents.filter((student) => {
+    const fullNameLower = student.name.toLowerCase();
+    
+    // If search term contains a space, try exact full name match first
+    if (searchLower.includes(' ')) {
+      // Match full name exactly (for check-in with selected name)
+      if (fullNameLower === searchLower) {
+        return true;
+      }
+      // Also allow full name to start with search term (for partial full name typing)
+      if (fullNameLower.startsWith(searchLower)) {
+        return true;
+      }
+    }
+    
+    // Extract first name (text before first space, or entire name if no space)
+    const firstName = student.name.split(' ')[0].toLowerCase();
+    
+    // Match only if search term matches the START of the first name
+    return firstName.startsWith(searchLower);
+  });
 }
 
 /**

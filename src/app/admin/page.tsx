@@ -144,13 +144,35 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredStudents = students.filter((student) =>
-    student.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter students by first name prefix or exact full name match
+  const filteredStudents = students.filter((student) => {
+    const searchLower = searchQuery.toLowerCase().trim();
+    const fullNameLower = student.name.toLowerCase();
+    
+    // If search contains space, try exact or prefix match on full name
+    if (searchLower.includes(' ')) {
+      return fullNameLower === searchLower || fullNameLower.startsWith(searchLower);
+    }
+    
+    // Otherwise match start of first name only
+    const firstName = student.name.split(' ')[0].toLowerCase();
+    return firstName.startsWith(searchLower);
+  });
 
-  const filteredActiveStudents = students.filter((student) =>
-    student.name.toLowerCase().includes(activeStudentsSearch.toLowerCase())
-  );
+  // Filter active students by first name prefix or exact full name match
+  const filteredActiveStudents = students.filter((student) => {
+    const searchLower = activeStudentsSearch.toLowerCase().trim();
+    const fullNameLower = student.name.toLowerCase();
+    
+    // If search contains space, try exact or prefix match on full name
+    if (searchLower.includes(' ')) {
+      return fullNameLower === searchLower || fullNameLower.startsWith(searchLower);
+    }
+    
+    // Otherwise match start of first name only
+    const firstName = student.name.split(' ')[0].toLowerCase();
+    return firstName.startsWith(searchLower);
+  });
 
   const handleDownloadStudentReport = () => {
     if (studentReportData) {

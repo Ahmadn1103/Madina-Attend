@@ -6,7 +6,13 @@ import {
   logCheckOut,
   type Student,
 } from "@/lib/firestore";
-import { calculateWeekNumber, determineClassType, calculateLateStatus } from "@/lib/attendanceLogic";
+import { 
+  calculateWeekNumber, 
+  determineClassType, 
+  calculateLateStatus,
+  validateLogin,
+  getEasternTime
+} from "@/lib/attendanceLogic";
 
 export async function POST(request: NextRequest) {
   console.log("\n🔵 === New Check-In Request ===");
@@ -55,12 +61,29 @@ export async function POST(request: NextRequest) {
 
     // Get today's date and week number
     const now = new Date();
-    const weekNumber = calculateWeekNumber(now);
-    const classType = determineClassType(now);
+    const easternNow = getEasternTime(now);
+    const weekNumber = calculateWeekNumber(easternNow);
+    const classType = determineClassType(easternNow);
 
-    console.log(`📅 Date: ${now.toLocaleDateString()}, Week: ${weekNumber}, Class: ${classType}`);
+    console.log(`📅 Date: ${easternNow.toLocaleDateString()}, Week: ${weekNumber}, Class: ${classType}`);
 
     if (actionNormalized === "checkin") {
+      // Validate login timing and day type
+      const validation = validateLogin(student.classType, now);
+      
+      if (!validation.allowed) {
+        console.log(`❌ Login not allowed: ${validation.reason}`);
+        return NextResponse.json(
+          { 
+            status: "error", 
+            message: validation.reason 
+          },
+          { status: 403 }
+        );
+      }
+      
+      console.log(`✅ Login validation passed: ${validation.status}`);
+
       // Check if already checked in today
       const existingAttendance = await getTodayAttendance(student.id!);
       
@@ -80,10 +103,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if student is late
-      const lateStatus = calculateLateStatus(now, classType);
-      const isLate = lateStatus.isLate;
-      const lateMinutes = lateStatus.lateMinutes;
+      // Use validation result for late status
+      const isLate = validation.status === "late";
+      const lateMinutes = validation.minutesLate || null;
 
       console.log(`⏰ Late status: ${isLate ? `YES (${lateMinutes} mins)` : "NO"}`);
 
