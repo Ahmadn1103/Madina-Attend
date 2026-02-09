@@ -114,6 +114,7 @@ export interface LoginValidationResult {
   status?: "on_time" | "late";
   dayType: "weekday" | "weekend";
   minutesLate?: number;
+  easternTime: Date; // The computed Eastern time, reuse to avoid extra getEasternTime calls
 }
 
 /**
@@ -134,20 +135,17 @@ export function validateLogin(
   studentClassType: ClassType,
   loginTime?: Date
 ): LoginValidationResult {
-  // Use raw time for functions that convert internally (like determineClassType)
-  const rawTime = loginTime || new Date();
+  // Convert to Eastern Time once — reuse for all checks
+  const easternTime = getEasternTime(loginTime);
   
-  // Get current time in Eastern Time (24-hour format) for time-of-day checks
-  const easternTime = getEasternTime(rawTime);
+  // Determine day type directly from the already-converted Eastern time
+  const dayOfWeek = easternTime.getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const currentDayType: "weekend" | "weekday" = isWeekend ? "weekend" : "weekday";
   
-  // Determine what type of day it is (weekday or weekend)
-  // IMPORTANT: Pass raw UTC time, NOT the already-converted easternTime!
-  // Passing easternTime would cause a double-conversion, shifting the day backward.
-  const currentDayType = determineClassType(rawTime);
-  
-  // Get day name for better error messages (from the correctly converted Eastern time)
+  // Get day name for better error messages
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const dayName = dayNames[easternTime.getDay()];
+  const dayName = dayNames[dayOfWeek];
   
   // Check if student can attend this class type
   const canAttend = canAttendClass(studentClassType, currentDayType);
@@ -167,6 +165,7 @@ export function validateLogin(
       allowed: false,
       reason,
       dayType: currentDayType,
+      easternTime,
     };
   }
   
@@ -209,6 +208,7 @@ export function validateLogin(
       allowed: false,
       reason: `Login opens 1 hour before class starts at ${displayTime}. Please try again in ${timeMessage}.`,
       dayType: currentDayType,
+      easternTime,
     };
   }
   
@@ -218,6 +218,7 @@ export function validateLogin(
       allowed: false,
       reason: "Class has already ended. Login is not allowed after class end time.",
       dayType: currentDayType,
+      easternTime,
     };
   }
   
@@ -230,6 +231,7 @@ export function validateLogin(
       status: "late",
       dayType: currentDayType,
       minutesLate,
+      easternTime,
     };
   } else {
     // Student is on time
@@ -238,6 +240,7 @@ export function validateLogin(
       status: "on_time",
       dayType: currentDayType,
       minutesLate: 0,
+      easternTime,
     };
   }
 }

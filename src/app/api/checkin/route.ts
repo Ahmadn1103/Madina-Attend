@@ -8,10 +8,7 @@ import {
 } from "@/lib/firestore";
 import { 
   calculateWeekNumber, 
-  determineClassType, 
-  calculateLateStatus,
   validateLogin,
-  getEasternTime
 } from "@/lib/attendanceLogic";
 
 export async function POST(request: NextRequest) {
@@ -59,19 +56,16 @@ export async function POST(request: NextRequest) {
     const student = students[0];
     console.log(`✅ Student found: ${student.name} (${student.id})`);
 
-    // Get today's date and week number
+    // Get today's date
     const now = new Date();
-    const easternNow = getEasternTime(now);
-    const weekNumber = calculateWeekNumber(easternNow);
-    // Use raw time for determineClassType (it converts internally)
-    const classType = determineClassType(now);
-
-    console.log(`📅 Date: ${easternNow.toLocaleDateString()}, Week: ${weekNumber}, Class: ${classType}`);
 
     if (actionNormalized === "checkin") {
-      // Validate login timing and day type
-      // Pass raw UTC time - validateLogin converts internally
+      // Validate login timing and day type (single getEasternTime call inside)
       const validation = validateLogin(student.classType, now);
+      const classType = validation.dayType;
+      const weekNumber = calculateWeekNumber(validation.easternTime);
+
+      console.log(`📅 Date: ${validation.easternTime.toLocaleDateString()}, Week: ${weekNumber}, Class: ${classType}`);
       
       if (!validation.allowed) {
         console.log(`❌ Login not allowed: ${validation.reason}`);
