@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             status: "warning", 
-            message: `${student.name} has already checked in today at ${existingAttendance.checkInTime.toDate().toLocaleTimeString()}`,
+            message: `${student.name} has already checked in today at ${existingAttendance.checkInTime.toDate().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true })}`,
             data: {
               studentName: student.name,
               checkInTime: existingAttendance.checkInTime.toDate().toISOString(),
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         status: "success",
         message: isLate 
-          ? `${student.name} checked in ${lateMinutes} minutes late`
+          ? `You are late by ${lateMinutes} minute${lateMinutes !== 1 ? 's' : ''}. ${student.name} checked in.`
           : `${student.name} checked in on time`,
         data: {
           studentName: student.name,
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             status: "warning", 
-            message: `${student.name} has already checked out today at ${existingAttendance.checkOutTime.toDate().toLocaleTimeString()}`,
+            message: `${student.name} has already checked out today at ${existingAttendance.checkOutTime.toDate().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true })}`,
             data: {
               studentName: student.name,
               checkOutTime: existingAttendance.checkOutTime.toDate().toISOString(),

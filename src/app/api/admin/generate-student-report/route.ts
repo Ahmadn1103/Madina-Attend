@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate statistics
     const totalCheckins = studentAttendance.length;
+    const totalCheckouts = studentAttendance.filter((r) => r.checkOutTime).length;
     const lateCheckins = studentAttendance.filter((r) => r.isLate).length;
     const onTimeCheckins = totalCheckins - lateCheckins;
     const totalLateMinutes = studentAttendance
@@ -78,9 +79,9 @@ export async function POST(request: NextRequest) {
     // Format for response
     const formattedRecords = sortedRecords.map((record) => ({
       date: record.date,
-      checkInTime: record.checkInTime.toDate().toLocaleString(),
+      checkInTime: record.checkInTime.toDate().toLocaleString("en-US", { timeZone: "America/New_York", hour12: true }),
       checkOutTime: record.checkOutTime
-        ? record.checkOutTime.toDate().toLocaleString()
+        ? record.checkOutTime.toDate().toLocaleString("en-US", { timeZone: "America/New_York", hour12: true })
         : null,
       classType: record.classType,
       status: record.isLate ? "Late" : "On Time",
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
         studentId: sortedRecords[0].studentId,
         summary: {
           totalCheckins,
+          totalCheckouts,
           lateCheckins,
           onTimeCheckins,
           totalLateMinutes,

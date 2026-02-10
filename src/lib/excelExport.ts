@@ -23,6 +23,7 @@ export function exportStudentReportToExcel(reportData: any) {
     [],
     ["Summary Statistics"],
     ["Total Check-ins", reportData.summary.totalCheckins],
+    ["Total Check-outs", reportData.summary.totalCheckouts],
     ["On Time", reportData.summary.onTimeCheckins],
     ["Late", reportData.summary.lateCheckins],
     ["Total Late Time", totalLateTime],
@@ -110,6 +111,7 @@ export function exportWeeklyReportToExcel(
     );
 
     const totalClasses = studentAttendance.length;
+    const totalCheckouts = studentAttendance.filter((r) => r.checkOutTime).length;
     const lateCount = studentAttendance.filter((r) => r.isLate).length;
     const totalLateMinutes = studentAttendance
       .filter((r) => r.lateMinutes)
@@ -126,6 +128,7 @@ export function exportWeeklyReportToExcel(
       name: student.name,
       classType: student.classType,
       totalClasses,
+      totalCheckouts,
       lateCount,
       onTimeCount: totalClasses - lateCount,
       totalLateTime,
@@ -143,6 +146,7 @@ export function exportWeeklyReportToExcel(
       "Student Name",
       "Class Type",
       "Total Classes",
+      "Total Check-outs",
       "Times Late",
       "On Time",
       "Total Late Time",
@@ -156,6 +160,7 @@ export function exportWeeklyReportToExcel(
       stat.name,
       stat.classType,
       stat.totalClasses,
+      stat.totalCheckouts,
       stat.lateCount,
       stat.onTimeCount,
       stat.totalLateTime,
@@ -222,6 +227,7 @@ export function exportWeeklyReportToExcel(
     { wch: 25 },
     { wch: 12 },
     { wch: 12 },
+    { wch: 15 },
     { wch: 10 },
     { wch: 10 },
     { wch: 12 },
@@ -253,13 +259,16 @@ export function exportWeeklyReportToExcel(
 }
 
 /**
- * Helper function to format timestamps
+ * Helper function to format timestamps in Eastern Time
  */
 function formatTimestamp(timestamp: any): string {
   if (!timestamp) return "N/A";
   try {
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleString();
+    return date.toLocaleString("en-US", { 
+      timeZone: "America/New_York", 
+      hour12: true 
+    });
   } catch {
     return "Invalid date";
   }

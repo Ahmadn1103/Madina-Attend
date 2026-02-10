@@ -97,9 +97,19 @@ export default function AdminDashboard() {
     if (!timestamp) return "N/A";
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleString();
+      // Convert to Eastern Time (EST/EDT)
+      return date.toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true, // Use 12-hour format with AM/PM for readability
+      });
     } catch {
-      return "Invalid date";
+      return "Invalid Date";
     }
   };
 
@@ -487,6 +497,18 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+          
+          <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg p-6 text-white transform transition hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-teal-100 text-sm font-medium">Total Check-outs</p>
+                <p className="text-4xl font-bold mt-2">{recentAttendance.filter((r) => r.checkOutTime).length}</p>
+              </div>
+              <div className="bg-white/20 rounded-full p-3">
+                <span className="text-3xl">🚪</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -738,6 +760,9 @@ export default function AdminDashboard() {
                           Check-in Time
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Check-out Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Class Type
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -756,6 +781,13 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatTime(record.checkInTime)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.checkOutTime ? (
+                              formatTime(record.checkOutTime)
+                            ) : (
+                              <span className="text-yellow-600 font-medium">Not checked out</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -900,11 +932,17 @@ export default function AdminDashboard() {
                           </h3>
                         </div>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
                             <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">Total Check-ins</p>
                             <p className="text-3xl font-bold text-emerald-600 text-center">
                               {studentReportData.summary.totalCheckins}
+                            </p>
+                          </div>
+                          <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">Total Check-outs</p>
+                            <p className="text-3xl font-bold text-teal-600 text-center">
+                              {studentReportData.summary.totalCheckouts}
                             </p>
                           </div>
                           <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
@@ -961,6 +999,9 @@ export default function AdminDashboard() {
                                 Check-in Time
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Check-out Time
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Class Type
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -979,6 +1020,13 @@ export default function AdminDashboard() {
                               <tr key={idx}>
                                 <td className="px-4 py-2 text-sm">{record.date}</td>
                                 <td className="px-4 py-2 text-sm">{record.checkInTime}</td>
+                                <td className="px-4 py-2 text-sm">
+                                  {record.checkOutTime ? (
+                                    record.checkOutTime
+                                  ) : (
+                                    <span className="text-yellow-600 font-medium text-xs">Not checked out</span>
+                                  )}
+                                </td>
                                 <td className="px-4 py-2 text-sm">
                                   <span
                                     className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

@@ -111,7 +111,7 @@ export default function Home() {
         const actionText = action === "checkin" ? "checked in" : "checked out";
         setMessage({
           type: "success",
-          text: `Successfully ${actionText}!`,
+          text: data.message || `Successfully ${action === "checkin" ? "checked in" : "checked out"}!`,  // ✅ Use API message
         });
         setName("");
       } else {

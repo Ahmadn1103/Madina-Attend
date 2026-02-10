@@ -213,7 +213,7 @@ export function validateLogin(
   }
   
   // Check if it's after class end time
-  if (currentMinutes > classEndMinutes) {
+  if (currentMinutes >= classEndMinutes) {
     return {
       allowed: false,
       reason: "Class has already ended. Login is not allowed after class end time.",
@@ -223,7 +223,7 @@ export function validateLogin(
   }
   
   // Login is allowed - determine if on time or late
-  if (currentMinutes > lateThresholdMinutes) {
+  if (currentMinutes >= lateThresholdMinutes) {
     // Student is late
     const minutesLate = currentMinutes - classStartMinutes;
     return {
