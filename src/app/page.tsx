@@ -305,28 +305,12 @@ export default function Home() {
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-600 animate-fade-in">
           <p>
-            Powered by{" "}
-            <a
-              href="https://www.salam-consulting.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-emerald-600 hover:text-emerald-700 underline decoration-emerald-300 hover:decoration-emerald-500 transition-colors"
-            >
-              Salam Consulting
-            </a>
+            Powered by <span className="font-semibold text-emerald-600">Salam Consulting</span>
           </p>
         </div>
         <div className="mt-6 text-center text-sm text-gray-600 animate-fade-in">
           <p>
-            Developed by{" "}
-            <a
-              href="https://www.linkedin.com/in/ahmad-noori1103/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-emerald-600 hover:text-emerald-700 underline decoration-emerald-300 hover:decoration-emerald-500 transition-colors"
-            >
-              Ahmad Noori
-            </a>
+            Developed by <span className="font-semibold text-emerald-600">Ahmad Noori</span>
           </p>
         </div>
       </div>
