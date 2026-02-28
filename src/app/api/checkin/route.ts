@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       const attendanceId = await logCheckIn(
         student.id!,
         student.name,
-        student.classType,
+        classType,
         weekNumber,
         isLate,
         lateMinutes

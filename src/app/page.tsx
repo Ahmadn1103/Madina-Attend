@@ -261,7 +261,7 @@ export default function Home() {
               <Button
                 onClick={() => handleSubmit("checkin")}
                 disabled={loading}
-                className="h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-base font-semibold shadow-lg transition-all hover:from-emerald-700 hover:to-emerald-800 hover:shadow-xl disabled:opacity-50"
+                className="h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white text-base font-semibold shadow-lg transition-all hover:from-emerald-700 hover:to-emerald-800 hover:shadow-xl active:from-emerald-800 active:to-emerald-900 active:text-white disabled:opacity-50"
               >
                 {loading ? (
                   <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

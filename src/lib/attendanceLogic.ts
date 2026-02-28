@@ -156,7 +156,7 @@ export function validateLogin(
     if (studentClassType === "weekend") {
       reason = `You are registered for WEEKEND classes only (Saturday & Sunday, 12:00 PM - 1:30 PM). Today is ${dayName}, a weekday. Please come back on the weekend.`;
     } else if (studentClassType === "weekday") {
-      reason = `You are registered for WEEKDAY classes only (Monday-Friday, 5:30 PM - 7:30 PM). Today is ${dayName}, a weekend day. Please come back on a weekday.`;
+      reason = `You are registered for WEEKDAY classes (Monday-Friday, 5:30 PM - 7:30 PM). Today is ${dayName}. Please come back on a weekday.`;
     } else {
       reason = `You are registered for ${studentClassType} classes. Today is a ${currentDayType} class day.`;
     }
@@ -339,6 +339,10 @@ export function canAttendClass(
   sessionClassType: "weekend" | "weekday"
 ): boolean {
   if (studentClassType === "both") {
+    return true;
+  }
+  // Weekday students can also attend weekend classes
+  if (studentClassType === "weekday" && sessionClassType === "weekend") {
     return true;
   }
   return studentClassType === sessionClassType;

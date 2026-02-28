@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RosterUpload from "@/components/RosterUpload";
-import { getActiveStudents, getAllWeeklySheets, getRecentAttendance } from "@/lib/firestore";
+import { getActiveStudents, getAllWeeklySheets, getAllAttendance } from "@/lib/firestore";
 import type { Student, WeeklySheet, AttendanceRecord } from "@/lib/firestore";
 import { exportStudentReportToExcel, exportWeeklyReportToExcel } from "@/lib/excelExport";
 import { formatMinutesToReadable } from "@/lib/timeFormat";
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
       const [studentsData, sheetsData, attendanceData] = await Promise.all([
         getActiveStudents(),
         getAllWeeklySheets(),
-        getRecentAttendance(100),
+        getAllAttendance(),
       ]);
       setStudents(studentsData);
       setWeeklySheets(sheetsData);
