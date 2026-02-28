@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { password } = body;
 
     // Get admin password from environment variable (server-side only)
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "madina2026";
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
     if (!password) {
       return NextResponse.json(

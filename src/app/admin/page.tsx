@@ -1082,6 +1082,7 @@ export default function AdminDashboard() {
             </Card>
 
             {/* All Weekly Reports */}
+            {/*}
             <Card className="border-2 border-teal-200 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-t-lg">
                 <CardTitle className="text-xl">📚 All Weekly Reports</CardTitle>
@@ -1148,6 +1149,7 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
+            */}
           </>
         )}
       </div>
