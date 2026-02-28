@@ -640,7 +640,7 @@ export default function AdminDashboard() {
                       placeholder="🔍 Search students..."
                       value={activeStudentsSearch}
                       onChange={(e) => setActiveStudentsSearch(e.target.value)}
-                      className="w-full bg-white border-slate-300"
+                      className="w-full bg-white text-gray-900 placeholder:text-gray-500 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition-colors"
                     />
                   </div>
                 </div>
