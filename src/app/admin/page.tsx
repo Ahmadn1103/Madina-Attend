@@ -12,7 +12,7 @@ import {
   getAllAttendance,
   matchesStudentNameSearch,
 } from "@/lib/firestore";
-import type { Student, WeeklySheet, AttendanceRecord } from "@/lib/firestore";
+import type { Student, WeeklySheet, AttendanceRecord, ClassType } from "@/lib/firestore";
 import { exportStudentReportToExcel, exportWeeklyReportToExcel } from "@/lib/excelExport";
 import { formatMinutesToReadable } from "@/lib/timeFormat";
 import Image from "next/image";
@@ -45,6 +45,8 @@ export default function AdminDashboard() {
   const [activeStudentsSearch, setActiveStudentsSearch] = useState("");
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingNameDraft, setEditingNameDraft] = useState("");
+  const [editingClassTypeDraft, setEditingClassTypeDraft] =
+    useState<ClassType>("weekend");
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
 
   // Check-ins tab: one day at a time
@@ -363,6 +365,7 @@ export default function AdminDashboard() {
   const handleEditStudentCancel = () => {
     setEditingStudentId(null);
     setEditingNameDraft("");
+    setEditingClassTypeDraft("weekend");
   };
 
   const handleSaveStudentName = async (studentId: string) => {
@@ -376,7 +379,11 @@ export default function AdminDashboard() {
       const response = await fetch("/api/admin/update-student", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, name: editingNameDraft }),
+        body: JSON.stringify({
+          studentId,
+          name: editingNameDraft,
+          classType: editingClassTypeDraft,
+        }),
       });
 
       const data = await response.json();
@@ -385,11 +392,11 @@ export default function AdminDashboard() {
         handleEditStudentCancel();
         loadDashboardData();
       } else {
-        alert(data.message || "Failed to update name");
+        alert(data.message || "Failed to update student");
       }
     } catch (error) {
       console.error("Error updating student:", error);
-      alert("Failed to update name. Please try again.");
+      alert("Failed to update student. Please try again.");
     } finally {
       setSavingStudentId(null);
     }
@@ -802,15 +809,35 @@ export default function AdminDashboard() {
                                 )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  student.classType === "weekend"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : student.classType === "weekday"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-purple-100 text-purple-800"
-                                }`}>
-                                  {student.classType}
-                                </span>
+                                {editingStudentId === student.id ? (
+                                  <select
+                                    value={editingClassTypeDraft}
+                                    onChange={(e) =>
+                                      setEditingClassTypeDraft(e.target.value as ClassType)
+                                    }
+                                    disabled={savingStudentId === student.id}
+                                    className="h-9 min-w-[11rem] px-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    aria-label="Class type"
+                                  >
+                                    <option value="weekend">Weekend</option>
+                                    <option value="weekday">Weekday</option>
+                                    <option value="both">
+                                      Both (weekend & weekday)
+                                    </option>
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                      student.classType === "weekend"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : student.classType === "weekday"
+                                          ? "bg-green-100 text-green-800"
+                                          : "bg-purple-100 text-purple-800"
+                                    }`}
+                                  >
+                                    {student.classType}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                 {stats.lastCheckIn}
@@ -854,6 +881,9 @@ export default function AdminDashboard() {
                                           if (student.id) {
                                             setEditingStudentId(student.id);
                                             setEditingNameDraft(student.name);
+                                            setEditingClassTypeDraft(
+                                              student.classType || "weekend"
+                                            );
                                           }
                                         }}
                                         variant="outline"

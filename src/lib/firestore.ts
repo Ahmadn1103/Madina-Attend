@@ -196,19 +196,42 @@ export async function bulkImportStudents(
 }
 
 /**
- * Update a student's display name (full name as stored)
+ * Update a student's name and/or class type (only provided fields are written).
  */
-export async function updateStudentName(studentId: string, name: string): Promise<void> {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error("Name cannot be empty");
-  }
+export async function updateStudentProfile(
+  studentId: string,
+  updates: { name?: string; classType?: ClassType }
+): Promise<void> {
   const docRef = doc(db, "students", studentId);
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) {
     throw new Error("Student not found");
   }
-  await updateDoc(docRef, { name: trimmed });
+
+  const patch: Record<string, string> = {};
+  if (updates.name !== undefined) {
+    const trimmed = updates.name.trim();
+    if (!trimmed) {
+      throw new Error("Name cannot be empty");
+    }
+    patch.name = trimmed;
+  }
+  if (updates.classType !== undefined) {
+    patch.classType = updates.classType;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    throw new Error("No updates provided");
+  }
+
+  await updateDoc(docRef, patch);
+}
+
+/**
+ * Update a student's display name (full name as stored)
+ */
+export async function updateStudentName(studentId: string, name: string): Promise<void> {
+  await updateStudentProfile(studentId, { name });
 }
 
 /**

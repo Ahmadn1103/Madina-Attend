@@ -452,6 +452,7 @@ export function canAttendClass(
   studentClassType: ClassType,
   sessionClassType: "weekend" | "weekday"
 ): boolean {
+  // "both" may check in on Sat–Sun (weekend schedule) and Mon–Thu (weekday schedule).
   if (studentClassType === "both") {
     return true;
   }
