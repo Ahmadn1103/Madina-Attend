@@ -28,7 +28,7 @@ export const WEEKEND_CLASS_SCHEDULE: ClassSchedule = {
 export const WEEKDAY_SESSION2_CHECKIN_EARLY_MINUTES = 10;
 
 /**
- * Weekday classes (Monday–Friday): two sessions, Eastern Time
+ * Weekday classes (Monday–Thursday; Friday off): two sessions, Eastern Time
  * Session 1: 5:30–6:30 PM · Session 2: 6:30–7:30 PM (session-2 attendance clock starts 6:20 PM)
  */
 export const WEEKDAY_CLASS_SESSIONS: ClassSchedule[] = [
@@ -59,6 +59,11 @@ function timeToMinutes(timeStr: string): number {
 
 function isWeekendCalendarDay(dayOfWeek: number): boolean {
   return dayOfWeek === 0 || dayOfWeek === 6;
+}
+
+/** Monday–Thursday only (Friday has no classes) */
+function isWeekdayClassDay(dayOfWeek: number): boolean {
+  return dayOfWeek >= 1 && dayOfWeek <= 4;
 }
 
 function getWeekdayLoginWindow(): { earlyOpen: number; lastEnd: number } {
@@ -123,6 +128,7 @@ export function getEasternTime(date?: Date): Date {
 
 /**
  * Coarse calendar grouping: Sat–Sun → "weekend", Mon–Fri → "weekday".
+ * Friday has no classes; use validateLogin for eligibility.
  */
 export function determineClassType(date?: Date): "weekend" | "weekday" {
   const easternDate = getEasternTime(date);
@@ -172,7 +178,7 @@ export interface LoginValidationResult {
  * Validate if a user can log in for attendance
  * 
  * This function enforces the following rules:
- * - Weekday classes: Monday–Friday, two sessions (5:30–6:30 PM and 6:30–7:30 PM ET)
+ * - Weekday classes: Monday–Thursday only (Friday off), two sessions (5:30–6:30 PM and 6:30–7:30 PM ET)
  * - Weekend classes: Saturday–Sunday, 11:00 AM–1:30 PM ET
  * - Login opens 1 hour before the first session of the day; closes after the last session ends
  * - Weekday session 2 uses a 10-minute-early check-in boundary (6:20 PM ET) vs session 1; lateness is still vs nominal class starts (5:30 / 6:30)
@@ -209,6 +215,17 @@ export function validateLogin(
   const dayName = dayNames[dayOfWeek];
 
   const onWeekendClassDay = isWeekendCalendarDay(dayOfWeek);
+  const onWeekdayClassDay = isWeekdayClassDay(dayOfWeek);
+
+  if (!onWeekendClassDay && !onWeekdayClassDay) {
+    return {
+      allowed: false,
+      reason: `There are no classes today (${dayName}). Weekday sessions run Monday–Thursday, 5:30–6:30 PM and 6:30–7:30 PM ET. Weekend classes are Saturday–Sunday, 11:00 AM–1:30 PM ET. Fridays are off.`,
+      dayType: "weekday",
+      easternTime,
+    };
+  }
+
   const currentDayType: "weekend" | "weekday" = onWeekendClassDay ? "weekend" : "weekday";
 
   const canAttend = canAttendClass(studentClassType, currentDayType);
@@ -218,7 +235,7 @@ export function validateLogin(
     if (studentClassType === "weekend") {
       reason = `You are registered for WEEKEND classes only (Saturday & Sunday, 11:00 AM–1:30 PM ET). Today is ${dayName}. Please come back on a weekend class day.`;
     } else if (studentClassType === "weekday") {
-      reason = `You are registered for WEEKDAY classes (Monday–Friday, two sessions: 5:30–6:30 PM and 6:30–7:30 PM ET). Today is ${dayName}. Please come back on a weekday class day.`;
+      reason = `You are registered for WEEKDAY classes (Monday–Thursday, two sessions: 5:30–6:30 PM and 6:30–7:30 PM ET; Fridays off). Today is ${dayName}. Please come back on a weekday class day.`;
     } else {
       reason = `You are registered for ${studentClassType} classes. Today does not match your schedule.`;
     }
@@ -290,7 +307,7 @@ export function validateLogin(
     };
   }
 
-  // Weekday: two sessions (Mon–Fri), shared login window
+  // Weekday: two sessions (Mon–Thu), shared login window
   const { earlyOpen, lastEnd } = getWeekdayLoginWindow();
   const schedule = selectWeekdaySessionForCheckIn(currentMinutes);
   const classStartMinutes = timeToMinutes(schedule.start);
