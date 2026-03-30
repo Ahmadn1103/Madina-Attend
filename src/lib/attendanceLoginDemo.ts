@@ -13,12 +13,12 @@ import { validateLogin, type ClassType, type LoginValidationResult } from "./att
 function demonstrateWeekdayLogin() {
   console.log("=== Weekday Student Login Demo ===\n");
   
-  // Example 1: Weekday student logging in on Monday at 5:00 PM ET (30 minutes before class)
+  // Example 1: Weekday student on Monday at 5:00 PM ET (30 min before first session 5:30)
   const weekdayStudent: ClassType = "weekday";
   const mondayAt5PM = new Date("2026-02-09T17:00:00-05:00"); // Monday, 5:00 PM ET
-  
+
   const result1 = validateLogin(weekdayStudent, mondayAt5PM);
-  console.log("Monday at 5:00 PM ET (30 min before class):");
+  console.log("Monday at 5:00 PM ET (before first session):");
   console.log(result1);
   // Expected: { allowed: true, status: "on_time", dayType: "weekday", minutesLate: 0 }
   
@@ -53,28 +53,28 @@ function demonstrateWeekdayLogin() {
 function demonstrateWeekendLogin() {
   console.log("\n\n=== Weekend Student Login Demo ===\n");
   
-  // Example 1: Weekend student logging in on Saturday at 11:30 AM ET (30 minutes before class)
+  // Example 1: Weekend student at 11:05 AM ET (just after start, within late window)
   const weekendStudent: ClassType = "weekend";
-  const saturdayAt11_30AM = new Date("2026-02-08T11:30:00-05:00"); // Saturday, 11:30 AM ET
-  
-  const result1 = validateLogin(weekendStudent, saturdayAt11_30AM);
-  console.log("Saturday at 11:30 AM ET (30 min before class):");
+  const saturdayAt11_05AM = new Date("2026-02-08T11:05:00-05:00"); // Saturday, 11:05 AM ET
+
+  const result1 = validateLogin(weekendStudent, saturdayAt11_05AM);
+  console.log("Saturday at 11:05 AM ET (on time):");
   console.log(result1);
   // Expected: { allowed: true, status: "on_time", dayType: "weekend", minutesLate: 0 }
-  
-  // Example 2: Weekend student logging in on Saturday at 10:30 AM ET (too early)
-  const saturdayAt10_30AM = new Date("2026-02-08T10:30:00-05:00"); // Saturday, 10:30 AM ET
-  
-  const result2 = validateLogin(weekendStudent, saturdayAt10_30AM);
-  console.log("\nSaturday at 10:30 AM ET (too early):");
+
+  // Example 2: Weekend student at 9:45 AM ET (too early; login opens 10:00 AM)
+  const saturdayAt9_45AM = new Date("2026-02-08T09:45:00-05:00"); // Saturday, 9:45 AM ET
+
+  const result2 = validateLogin(weekendStudent, saturdayAt9_45AM);
+  console.log("\nSaturday at 9:45 AM ET (too early):");
   console.log(result2);
-  // Expected: { allowed: false, reason: "Login opens 1 hour before class...", dayType: "weekend" }
+  // Expected: { allowed: false, reason includes "Login opens", dayType: "weekend" }
   
-  // Example 3: Weekend student logging in on Saturday at 12:20 PM ET (20 minutes late)
-  const saturdayAt12_20PM = new Date("2026-02-08T12:20:00-05:00"); // Saturday, 12:20 PM ET
-  
-  const result3 = validateLogin(weekendStudent, saturdayAt12_20PM);
-  console.log("\nSaturday at 12:20 PM ET (20 min late):");
+  // Example 3: Weekend student at 11:20 AM ET (20 minutes after 11:00 start)
+  const saturdayAt11_20AM = new Date("2026-02-08T11:20:00-05:00"); // Saturday, 11:20 AM ET
+
+  const result3 = validateLogin(weekendStudent, saturdayAt11_20AM);
+  console.log("\nSaturday at 11:20 AM ET (20 min after start):");
   console.log(result3);
   // Expected: { allowed: true, status: "late", dayType: "weekend", minutesLate: 20 }
   
@@ -111,9 +111,9 @@ function demonstrateBothClassLogin() {
   // Expected: { allowed: true, status: "on_time", dayType: "weekday", minutesLate: 0 }
   
   // Can attend weekend classes
-  const saturdayAt11_30AM = new Date("2026-02-08T11:30:00-05:00");
-  const result2 = validateLogin(bothStudent, saturdayAt11_30AM);
-  console.log("\nSaturday at 11:30 AM ET (weekend class):");
+  const saturdayAt11_05AM = new Date("2026-02-08T11:05:00-05:00");
+  const result2 = validateLogin(bothStudent, saturdayAt11_05AM);
+  console.log("\nSaturday at 11:05 AM ET (weekend class):");
   console.log(result2);
   // Expected: { allowed: true, status: "on_time", dayType: "weekend", minutesLate: 0 }
 }

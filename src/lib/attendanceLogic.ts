@@ -13,21 +13,74 @@ export interface ClassSchedule {
   earlyLoginMinutes: number; // How many minutes before class start users can log in
 }
 
-// Class schedules configuration (Eastern Time)
-export const CLASS_SCHEDULES: Record<"weekend" | "weekday", ClassSchedule> = {
-  weekend: {
-    start: "12:00", // 12:00 PM ET
-    end: "13:30",   // 1:30 PM ET
-    lateThresholdMinutes: 15,
-    earlyLoginMinutes: 60, // Can log in 1 hour before
-  },
-  weekday: {
-    start: "17:30", // 5:30 PM ET
-    end: "19:30",   // 7:30 PM ET
-    lateThresholdMinutes: 15,
-    earlyLoginMinutes: 60, // Can log in 1 hour before
-  },
+/** Weekend class (Eastern Time): single block */
+export const WEEKEND_CLASS_SCHEDULE: ClassSchedule = {
+  start: "11:00", // 11:00 AM ET
+  end: "13:30", // 1:30 PM ET
+  lateThresholdMinutes: 15,
+  earlyLoginMinutes: 60,
 };
+
+/**
+ * Minutes before session 2’s nominal start (6:30 PM) that check-in is treated as session 2
+ * (so arrivals ~6:20–6:30 aren’t graded against session 1).
+ */
+export const WEEKDAY_SESSION2_CHECKIN_EARLY_MINUTES = 10;
+
+/**
+ * Weekday classes (Monday–Friday): two sessions, Eastern Time
+ * Session 1: 5:30–6:30 PM · Session 2: 6:30–7:30 PM (session-2 attendance clock starts 6:20 PM)
+ */
+export const WEEKDAY_CLASS_SESSIONS: ClassSchedule[] = [
+  {
+    start: "17:30",
+    end: "18:30",
+    lateThresholdMinutes: 15,
+    earlyLoginMinutes: 60,
+  },
+  {
+    start: "18:30",
+    end: "19:30",
+    lateThresholdMinutes: 15,
+    earlyLoginMinutes: 60,
+  },
+];
+
+/** @deprecated Prefer WEEKEND_CLASS_SCHEDULE and WEEKDAY_CLASS_SESSIONS */
+export const CLASS_SCHEDULES: Record<"weekend" | "weekday", ClassSchedule> = {
+  weekend: WEEKEND_CLASS_SCHEDULE,
+  weekday: WEEKDAY_CLASS_SESSIONS[0],
+};
+
+function timeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function isWeekendCalendarDay(dayOfWeek: number): boolean {
+  return dayOfWeek === 0 || dayOfWeek === 6;
+}
+
+function getWeekdayLoginWindow(): { earlyOpen: number; lastEnd: number } {
+  const earlyOpen = Math.min(
+    ...WEEKDAY_CLASS_SESSIONS.map(
+      (s) => timeToMinutes(s.start) - s.earlyLoginMinutes
+    )
+  );
+  const lastEnd = Math.max(...WEEKDAY_CLASS_SESSIONS.map((s) => timeToMinutes(s.end)));
+  return { earlyOpen, lastEnd };
+}
+
+/** Pick which weekday session determines lateness for this clock time */
+function selectWeekdaySessionForCheckIn(currentMinutes: number): ClassSchedule {
+  const session2NominalStart = timeToMinutes(WEEKDAY_CLASS_SESSIONS[1].start);
+  const session2AttendanceStarts =
+    session2NominalStart - WEEKDAY_SESSION2_CHECKIN_EARLY_MINUTES;
+  if (currentMinutes < session2AttendanceStarts) {
+    return WEEKDAY_CLASS_SESSIONS[0];
+  }
+  return WEEKDAY_CLASS_SESSIONS[1];
+}
 
 // Timezone constant
 const EASTERN_TIMEZONE = "America/New_York";
@@ -69,33 +122,31 @@ export function getEasternTime(date?: Date): Date {
 }
 
 /**
- * Determine if a given date/time is a weekend or weekday class
- * Uses Eastern Time (24-hour format)
- * 
- * IMPORTANT: Pass a raw UTC date here - this function converts to Eastern internally.
- * Do NOT pass an already-converted Eastern time, or the day will be wrong!
+ * Coarse calendar grouping: Sat–Sun → "weekend", Mon–Fri → "weekday".
  */
 export function determineClassType(date?: Date): "weekend" | "weekday" {
   const easternDate = getEasternTime(date);
   const dayOfWeek = easternDate.getDay();
-  // 0 = Sunday, 6 = Saturday
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  
-  // Debug logging (can be removed in production)
-  if (typeof window === 'undefined') { // Only log on server
-    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    console.log(`[determineClassType] Eastern: ${dayNames[dayOfWeek]} (day=${dayOfWeek}), Type: ${isWeekend ? 'weekend' : 'weekday'}`);
-  }
-  
-  return isWeekend ? "weekend" : "weekday";
-}
 
-/**
- * Parse time string (HH:MM) and return minutes since midnight
- */
-function timeToMinutes(timeStr: string): number {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  return hours * 60 + minutes;
+  if (typeof window === "undefined") {
+    const dayNames = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const label = isWeekendCalendarDay(dayOfWeek)
+      ? "weekend"
+      : "weekday";
+    console.log(
+      `[determineClassType] Eastern: ${dayNames[dayOfWeek]} (day=${dayOfWeek}), Type: ${label}`
+    );
+  }
+
+  return isWeekendCalendarDay(dayOfWeek) ? "weekend" : "weekday";
 }
 
 /**
@@ -121,46 +172,57 @@ export interface LoginValidationResult {
  * Validate if a user can log in for attendance
  * 
  * This function enforces the following rules:
- * - Users can only log in on days that match their class type (weekday vs weekend)
- * - Login is allowed starting 1 hour before class start time
- * - Login is not allowed after class end time
- * - Users are marked "late" if they log in more than 15 minutes after class start
- * - All times are calculated in Eastern Time (America/New_York)
+ * - Weekday classes: Monday–Friday, two sessions (5:30–6:30 PM and 6:30–7:30 PM ET)
+ * - Weekend classes: Saturday–Sunday, 11:00 AM–1:30 PM ET
+ * - Login opens 1 hour before the first session of the day; closes after the last session ends
+ * - Weekday session 2 uses a 10-minute-early check-in boundary (6:20 PM ET) vs session 1; lateness is still vs nominal class starts (5:30 / 6:30)
+ * - All times use Eastern Time (America/New_York)
  * 
  * @param studentClassType - The class type assigned to the student
  * @param loginTime - Optional Date object (defaults to current time)
  * @returns LoginValidationResult object with validation details
  */
+function formatTimeHHMMForDisplay(hhmm: string): string {
+  const [hourStr, minStr] = hhmm.split(":");
+  const startHourNum = parseInt(hourStr, 10);
+  const startMin = minStr;
+  return startHourNum >= 12
+    ? `${startHourNum === 12 ? 12 : startHourNum - 12}:${startMin} PM`
+    : `${startHourNum === 0 ? 12 : startHourNum}:${startMin} AM`;
+}
+
 export function validateLogin(
   studentClassType: ClassType,
   loginTime?: Date
 ): LoginValidationResult {
-  // Convert to Eastern Time once — reuse for all checks
   const easternTime = getEasternTime(loginTime);
-  
-  // Determine day type directly from the already-converted Eastern time
   const dayOfWeek = easternTime.getDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const currentDayType: "weekend" | "weekday" = isWeekend ? "weekend" : "weekday";
-  
-  // Get day name for better error messages
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
   const dayName = dayNames[dayOfWeek];
-  
-  // Check if student can attend this class type
+
+  const onWeekendClassDay = isWeekendCalendarDay(dayOfWeek);
+  const currentDayType: "weekend" | "weekday" = onWeekendClassDay ? "weekend" : "weekday";
+
   const canAttend = canAttendClass(studentClassType, currentDayType);
-  
+
   if (!canAttend) {
-    // Provide clearer error message based on student's class type
     let reason = "";
     if (studentClassType === "weekend") {
-      reason = `You are registered for WEEKEND classes only (Saturday & Sunday, 12:00 PM - 1:30 PM). Today is ${dayName}, a weekday. Please come back on the weekend.`;
+      reason = `You are registered for WEEKEND classes only (Saturday & Sunday, 11:00 AM–1:30 PM ET). Today is ${dayName}. Please come back on a weekend class day.`;
     } else if (studentClassType === "weekday") {
-      reason = `You are registered for WEEKDAY classes (Monday-Friday, 5:30 PM - 7:30 PM). Today is ${dayName}. Please come back on a weekday.`;
+      reason = `You are registered for WEEKDAY classes (Monday–Friday, two sessions: 5:30–6:30 PM and 6:30–7:30 PM ET). Today is ${dayName}. Please come back on a weekday class day.`;
     } else {
-      reason = `You are registered for ${studentClassType} classes. Today is a ${currentDayType} class day.`;
+      reason = `You are registered for ${studentClassType} classes. Today does not match your schedule.`;
     }
-    
+
     return {
       allowed: false,
       reason,
@@ -168,73 +230,57 @@ export function validateLogin(
       easternTime,
     };
   }
-  
-  // Get the schedule for today's class type
-  const schedule = CLASS_SCHEDULES[currentDayType];
-  
-  // Get current time in minutes since midnight (24-hour format)
+
   const currentMinutes = dateToMinutes(easternTime);
-  
-  // Get class times in minutes since midnight
-  const classStartMinutes = timeToMinutes(schedule.start);
-  const classEndMinutes = timeToMinutes(schedule.end);
-  const earlyLoginMinutes = classStartMinutes - schedule.earlyLoginMinutes;
-  const lateThresholdMinutes = classStartMinutes + schedule.lateThresholdMinutes;
-  
-  // Format class start time for display (24-hour format)
-  const classStartTime = schedule.start;
-  const [startHour, startMin] = classStartTime.split(":");
-  const startHourNum = parseInt(startHour);
-  const displayTime = startHourNum >= 12 
-    ? `${startHourNum === 12 ? 12 : startHourNum - 12}:${startMin} PM`
-    : `${startHourNum === 0 ? 12 : startHourNum}:${startMin} AM`;
-  
-  // Check if it's too early to log in (more than 1 hour before class)
-  if (currentMinutes < earlyLoginMinutes) {
-    const minutesUntilEarlyLogin = earlyLoginMinutes - currentMinutes;
-    const hours = Math.floor(minutesUntilEarlyLogin / 60);
-    const minutes = minutesUntilEarlyLogin % 60;
-    
-    let timeMessage = "";
-    if (hours > 0 && minutes > 0) {
-      timeMessage = `${hours} hour${hours > 1 ? "s" : ""} and ${minutes} minute${minutes > 1 ? "s" : ""}`;
-    } else if (hours > 0) {
-      timeMessage = `${hours} hour${hours > 1 ? "s" : ""}`;
-    } else {
-      timeMessage = `${minutes} minute${minutes > 1 ? "s" : ""}`;
+
+  if (currentDayType === "weekend") {
+    const schedule = WEEKEND_CLASS_SCHEDULE;
+    const classStartMinutes = timeToMinutes(schedule.start);
+    const classEndMinutes = timeToMinutes(schedule.end);
+    const earlyOpen = classStartMinutes - schedule.earlyLoginMinutes;
+    const lateThresholdMinutes = classStartMinutes + schedule.lateThresholdMinutes;
+    const displayTime = formatTimeHHMMForDisplay(schedule.start);
+
+    if (currentMinutes < earlyOpen) {
+      const minutesUntilEarlyLogin = earlyOpen - currentMinutes;
+      const hours = Math.floor(minutesUntilEarlyLogin / 60);
+      const minutes = minutesUntilEarlyLogin % 60;
+      let timeMessage = "";
+      if (hours > 0 && minutes > 0) {
+        timeMessage = `${hours} hour${hours > 1 ? "s" : ""} and ${minutes} minute${minutes > 1 ? "s" : ""}`;
+      } else if (hours > 0) {
+        timeMessage = `${hours} hour${hours > 1 ? "s" : ""}`;
+      } else {
+        timeMessage = `${minutes} minute${minutes > 1 ? "s" : ""}`;
+      }
+      return {
+        allowed: false,
+        reason: `Login opens 1 hour before class starts (${displayTime} ET). Please try again in ${timeMessage}.`,
+        dayType: currentDayType,
+        easternTime,
+      };
     }
-    
-    return {
-      allowed: false,
-      reason: `Login opens 1 hour before class starts at ${displayTime}. Please try again in ${timeMessage}.`,
-      dayType: currentDayType,
-      easternTime,
-    };
-  }
-  
-  // Check if it's after class end time
-  if (currentMinutes >= classEndMinutes) {
-    return {
-      allowed: false,
-      reason: "Class has already ended. Login is not allowed after class end time.",
-      dayType: currentDayType,
-      easternTime,
-    };
-  }
-  
-  // Login is allowed - determine if on time or late
-  if (currentMinutes >= lateThresholdMinutes) {
-    // Student is late
-    const minutesLate = currentMinutes - classStartMinutes;
-    return {
-      allowed: true,
-      status: "late",
-      dayType: currentDayType,
-      minutesLate,
-      easternTime,
-    };
-  } else {
-    // Student is on time
+
+    if (currentMinutes >= classEndMinutes) {
+      return {
+        allowed: false,
+        reason: "Class has already ended. Login is not allowed after class end time.",
+        dayType: currentDayType,
+        easternTime,
+      };
+    }
+
+    if (currentMinutes >= lateThresholdMinutes) {
+      const minutesLate = currentMinutes - classStartMinutes;
+      return {
+        allowed: true,
+        status: "late",
+        dayType: currentDayType,
+        minutesLate,
+        easternTime,
+      };
+    }
+
     return {
       allowed: true,
       status: "on_time",
@@ -243,6 +289,61 @@ export function validateLogin(
       easternTime,
     };
   }
+
+  // Weekday: two sessions (Mon–Fri), shared login window
+  const { earlyOpen, lastEnd } = getWeekdayLoginWindow();
+  const schedule = selectWeekdaySessionForCheckIn(currentMinutes);
+  const classStartMinutes = timeToMinutes(schedule.start);
+  const lateThresholdMinutes = classStartMinutes + schedule.lateThresholdMinutes;
+  const firstStartDisplay = formatTimeHHMMForDisplay(WEEKDAY_CLASS_SESSIONS[0].start);
+
+  if (currentMinutes < earlyOpen) {
+    const minutesUntilEarlyLogin = earlyOpen - currentMinutes;
+    const hours = Math.floor(minutesUntilEarlyLogin / 60);
+    const minutes = minutesUntilEarlyLogin % 60;
+    let timeMessage = "";
+    if (hours > 0 && minutes > 0) {
+      timeMessage = `${hours} hour${hours > 1 ? "s" : ""} and ${minutes} minute${minutes > 1 ? "s" : ""}`;
+    } else if (hours > 0) {
+      timeMessage = `${hours} hour${hours > 1 ? "s" : ""}`;
+    } else {
+      timeMessage = `${minutes} minute${minutes > 1 ? "s" : ""}`;
+    }
+    return {
+      allowed: false,
+      reason: `Login opens 1 hour before the first session (${firstStartDisplay} ET). Please try again in ${timeMessage}.`,
+      dayType: currentDayType,
+      easternTime,
+    };
+  }
+
+  if (currentMinutes >= lastEnd) {
+    return {
+      allowed: false,
+      reason: "Class has already ended. Login is not allowed after the last session ends (7:30 PM ET).",
+      dayType: currentDayType,
+      easternTime,
+    };
+  }
+
+  if (currentMinutes >= lateThresholdMinutes) {
+    const minutesLate = currentMinutes - classStartMinutes;
+    return {
+      allowed: true,
+      status: "late",
+      dayType: currentDayType,
+      minutesLate,
+      easternTime,
+    };
+  }
+
+  return {
+    allowed: true,
+    status: "on_time",
+    dayType: currentDayType,
+    minutesLate: 0,
+    easternTime,
+  };
 }
 
 /**
@@ -253,21 +354,17 @@ export function calculateLateStatus(
   checkInTime: Date,
   classType: "weekend" | "weekday"
 ): { isLate: boolean; lateMinutes: number | null } {
-  const schedule = CLASS_SCHEDULES[classType];
-
-  // Convert to Eastern Time
   const easternTime = getEasternTime(checkInTime);
-
-  // Get the check-in time in minutes since midnight
   const checkInMinutes = dateToMinutes(easternTime);
 
-  // Get the class start time in minutes since midnight
-  const startMinutes = timeToMinutes(schedule.start);
+  const schedule =
+    classType === "weekend"
+      ? WEEKEND_CLASS_SCHEDULE
+      : selectWeekdaySessionForCheckIn(checkInMinutes);
 
-  // Calculate the late threshold time
+  const startMinutes = timeToMinutes(schedule.start);
   const lateThresholdMinutes = startMinutes + schedule.lateThresholdMinutes;
 
-  // If checked in after the late threshold
   if (checkInMinutes > lateThresholdMinutes) {
     const lateBy = checkInMinutes - startMinutes;
     return { isLate: true, lateMinutes: lateBy };

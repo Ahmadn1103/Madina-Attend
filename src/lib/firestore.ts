@@ -91,10 +91,26 @@ export async function getActiveStudents(): Promise<Student[]> {
   })) as Student[];
 }
 
+/** Whitespace-separated words of a name, lowercased */
+function studentNameWords(studentName: string): string[] {
+  return studentName.toLowerCase().trim().split(/\s+/).filter(Boolean);
+}
+
 /**
- * Search students by first name prefix or exact full name match
- * - Partial search: "AH" matches "Ahmad Noori" but NOT "Abdirahman Osman"
- * - Full name: "Ahmad Noori" matches exactly
+ * Match if every query word is a prefix of at least one name word (first, middle, last, etc.).
+ * Example: "Ahmad Mubasher Noori" matches "ahmad", "mubasher", "noori", "mub", or "ahmad noori".
+ */
+export function matchesStudentNameSearch(studentName: string, searchTerm: string): boolean {
+  const q = searchTerm.toLowerCase().trim();
+  if (!q) return true;
+  const queryTokens = q.split(/\s+/).filter(Boolean);
+  const words = studentNameWords(studentName);
+  if (words.length === 0) return false;
+  return queryTokens.every((qt) => words.some((w) => w.startsWith(qt)));
+}
+
+/**
+ * Search students by matching any part of the full name (each query word must match some name word as prefix).
  */
 export async function searchStudents(searchTerm: string): Promise<Student[]> {
   const allStudents = await getActiveStudents();
@@ -104,27 +120,9 @@ export async function searchStudents(searchTerm: string): Promise<Student[]> {
     return allStudents;
   }
 
-  return allStudents.filter((student) => {
-    const fullNameLower = student.name.toLowerCase();
-    
-    // If search term contains a space, try exact full name match first
-    if (searchLower.includes(' ')) {
-      // Match full name exactly (for check-in with selected name)
-      if (fullNameLower === searchLower) {
-        return true;
-      }
-      // Also allow full name to start with search term (for partial full name typing)
-      if (fullNameLower.startsWith(searchLower)) {
-        return true;
-      }
-    }
-    
-    // Extract first name (text before first space, or entire name if no space)
-    const firstName = student.name.split(' ')[0].toLowerCase();
-    
-    // Match only if search term matches the START of the first name
-    return firstName.startsWith(searchLower);
-  });
+  return allStudents.filter((student) =>
+    matchesStudentNameSearch(student.name, searchTerm)
+  );
 }
 
 /**
@@ -195,6 +193,22 @@ export async function bulkImportStudents(
   }
 
   return { success, failed, skipped, errors };
+}
+
+/**
+ * Update a student's display name (full name as stored)
+ */
+export async function updateStudentName(studentId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error("Name cannot be empty");
+  }
+  const docRef = doc(db, "students", studentId);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) {
+    throw new Error("Student not found");
+  }
+  await updateDoc(docRef, { name: trimmed });
 }
 
 /**

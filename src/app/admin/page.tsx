@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RosterUpload from "@/components/RosterUpload";
-import { getActiveStudents, getAllWeeklySheets, getAllAttendance } from "@/lib/firestore";
+import {
+  getActiveStudents,
+  getAllWeeklySheets,
+  getAllAttendance,
+  matchesStudentNameSearch,
+} from "@/lib/firestore";
 import type { Student, WeeklySheet, AttendanceRecord } from "@/lib/firestore";
 import { exportStudentReportToExcel, exportWeeklyReportToExcel } from "@/lib/excelExport";
 import { formatMinutesToReadable } from "@/lib/timeFormat";
@@ -38,6 +43,74 @@ export default function AdminDashboard() {
   
   // Active students search
   const [activeStudentsSearch, setActiveStudentsSearch] = useState("");
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editingNameDraft, setEditingNameDraft] = useState("");
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
+
+  // Check-ins tab: one day at a time
+  const [selectedCheckInDate, setSelectedCheckInDate] = useState<string>("");
+
+  const checkInCountByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of recentAttendance) {
+      if (!r.date) continue;
+      m.set(r.date, (m.get(r.date) ?? 0) + 1);
+    }
+    return m;
+  }, [recentAttendance]);
+
+  const checkInDatesDesc = useMemo(() => {
+    return Array.from(checkInCountByDate.keys()).sort((a, b) => b.localeCompare(a));
+  }, [checkInCountByDate]);
+
+  useEffect(() => {
+    if (checkInDatesDesc.length === 0) {
+      setSelectedCheckInDate("");
+      return;
+    }
+    if (!selectedCheckInDate || !checkInDatesDesc.includes(selectedCheckInDate)) {
+      setSelectedCheckInDate(checkInDatesDesc[0]);
+    }
+  }, [checkInDatesDesc, selectedCheckInDate]);
+
+  const checkInsForSelectedDay = useMemo(() => {
+    if (!selectedCheckInDate) return [];
+    return recentAttendance
+      .filter((r) => r.date === selectedCheckInDate)
+      .slice()
+      .sort((a, b) => {
+        const ta = a.checkInTime?.toDate?.() ?? new Date(0);
+        const tb = b.checkInTime?.toDate?.() ?? new Date(0);
+        return tb.getTime() - ta.getTime();
+      });
+  }, [recentAttendance, selectedCheckInDate]);
+
+  // Dashboard totals: same calendar day as stored on each record (`date`, UTC YYYY-MM-DD from check-in)
+  const ymdToday = new Date().toISOString().split("T")[0];
+  const { todayCheckInCount, todayCheckOutCount } = useMemo(() => {
+    let ins = 0;
+    let outs = 0;
+    for (const r of recentAttendance) {
+      if (r.date !== ymdToday) continue;
+      ins += 1;
+      if (r.checkOutTime) outs += 1;
+    }
+    return { todayCheckInCount: ins, todayCheckOutCount: outs };
+  }, [recentAttendance, ymdToday]);
+
+  const formatDateLabel = (ymd: string) => {
+    if (!ymd) return "";
+    const [y, m, d] = ymd.split("-").map(Number);
+    if (!y || !m || !d) return ymd;
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "America/New_York",
+    });
+  };
 
   // Authenticate via backend API (secure)
   const handleLogin = async () => {
@@ -154,35 +227,13 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filter students by first name prefix or exact full name match
-  const filteredStudents = students.filter((student) => {
-    const searchLower = searchQuery.toLowerCase().trim();
-    const fullNameLower = student.name.toLowerCase();
-    
-    // If search contains space, try exact or prefix match on full name
-    if (searchLower.includes(' ')) {
-      return fullNameLower === searchLower || fullNameLower.startsWith(searchLower);
-    }
-    
-    // Otherwise match start of first name only
-    const firstName = student.name.split(' ')[0].toLowerCase();
-    return firstName.startsWith(searchLower);
-  });
+  const filteredStudents = students.filter((student) =>
+    matchesStudentNameSearch(student.name, searchQuery)
+  );
 
-  // Filter active students by first name prefix or exact full name match
-  const filteredActiveStudents = students.filter((student) => {
-    const searchLower = activeStudentsSearch.toLowerCase().trim();
-    const fullNameLower = student.name.toLowerCase();
-    
-    // If search contains space, try exact or prefix match on full name
-    if (searchLower.includes(' ')) {
-      return fullNameLower === searchLower || fullNameLower.startsWith(searchLower);
-    }
-    
-    // Otherwise match start of first name only
-    const firstName = student.name.split(' ')[0].toLowerCase();
-    return firstName.startsWith(searchLower);
-  });
+  const filteredActiveStudents = students.filter((student) =>
+    matchesStudentNameSearch(student.name, activeStudentsSearch)
+  );
 
   const handleDownloadStudentReport = () => {
     if (studentReportData) {
@@ -309,6 +360,41 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEditStudentCancel = () => {
+    setEditingStudentId(null);
+    setEditingNameDraft("");
+  };
+
+  const handleSaveStudentName = async (studentId: string) => {
+    if (!editingNameDraft.trim()) {
+      alert("Name cannot be empty.");
+      return;
+    }
+
+    setSavingStudentId(studentId);
+    try {
+      const response = await fetch("/api/admin/update-student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, name: editingNameDraft }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        handleEditStudentCancel();
+        loadDashboardData();
+      } else {
+        alert(data.message || "Failed to update name");
+      }
+    } catch (error) {
+      console.error("Error updating student:", error);
+      alert("Failed to update name. Please try again.");
+    } finally {
+      setSavingStudentId(null);
+    }
+  };
+
   const handleDeleteStudent = async (student: Student) => {
     console.log("Delete button clicked for:", student);
     console.log("Student ID:", student.id);
@@ -341,6 +427,9 @@ export default function AdminDashboard() {
       console.log("Delete response data:", data);
 
       if (data.status === "success") {
+        if (editingStudentId === student.id) {
+          handleEditStudentCancel();
+        }
         alert(`✅ ${student.name} has been deleted successfully.`);
         // Refresh student list
         loadDashboardData();
@@ -489,8 +578,9 @@ export default function AdminDashboard() {
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white transform transition hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-100 text-sm font-medium">Total Check-ins</p>
-                <p className="text-4xl font-bold mt-2">{recentAttendance.length}</p>
+                <p className="text-orange-100 text-sm font-medium">{"Today's check-ins"}</p>
+                <p className="text-4xl font-bold mt-2">{todayCheckInCount}</p>
+                <p className="text-orange-200/90 text-xs mt-1">{formatDateLabel(ymdToday)}</p>
               </div>
               <div className="bg-white/20 rounded-full p-3">
                 <span className="text-3xl">✅</span>
@@ -501,8 +591,9 @@ export default function AdminDashboard() {
           <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg p-6 text-white transform transition hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-teal-100 text-sm font-medium">Total Check-outs</p>
-                <p className="text-4xl font-bold mt-2">{recentAttendance.filter((r) => r.checkOutTime).length}</p>
+                <p className="text-teal-100 text-sm font-medium">{"Today's check-outs"}</p>
+                <p className="text-4xl font-bold mt-2">{todayCheckOutCount}</p>
+                <p className="text-teal-200/90 text-xs mt-1">{formatDateLabel(ymdToday)}</p>
               </div>
               <div className="bg-white/20 rounded-full p-3">
                 <span className="text-3xl">🚪</span>
@@ -687,8 +778,28 @@ export default function AdminDashboard() {
                           const stats = getStudentStats(student.id || "");
                           return (
                             <tr key={student.id}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {student.name}
+                              <td className="px-6 py-4 text-sm font-medium text-gray-900 min-w-[12rem]">
+                                {editingStudentId === student.id ? (
+                                  <Input
+                                    value={editingNameDraft}
+                                    onChange={(e) => setEditingNameDraft(e.target.value)}
+                                    className="max-w-md h-9"
+                                    disabled={savingStudentId === student.id}
+                                    aria-label="Student full name"
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        handleEditStudentCancel();
+                                      }
+                                      if (e.key === "Enter" && student.id) {
+                                        e.preventDefault();
+                                        void handleSaveStudentName(student.id);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="whitespace-nowrap">{student.name}</span>
+                                )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -714,14 +825,54 @@ export default function AdminDashboard() {
                                 {stats.onTime}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <Button
-                                  onClick={() => handleDeleteStudent(student)}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-red-600 border-red-300 hover:bg-red-50"
-                                >
-                                  🗑️ Delete
-                                </Button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {editingStudentId === student.id ? (
+                                    <>
+                                      <Button
+                                        onClick={() =>
+                                          student.id && handleSaveStudentName(student.id)
+                                        }
+                                        size="sm"
+                                        className="bg-emerald-600 hover:bg-emerald-700"
+                                        disabled={savingStudentId === student.id}
+                                      >
+                                        {savingStudentId === student.id ? "Saving…" : "Save"}
+                                      </Button>
+                                      <Button
+                                        onClick={handleEditStudentCancel}
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={savingStudentId === student.id}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button
+                                        onClick={() => {
+                                          if (student.id) {
+                                            setEditingStudentId(student.id);
+                                            setEditingNameDraft(student.name);
+                                          }
+                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-slate-300"
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleDeleteStudent(student)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-red-600 border-red-300 hover:bg-red-50"
+                                      >
+                                        🗑️ Delete
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -738,15 +889,46 @@ export default function AdminDashboard() {
         {activeTab === "checkins" && (
           <Card className="border-2 border-blue-200 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-t-lg">
-              <CardTitle className="text-xl">📋 Recent Check-ins</CardTitle>
-              <CardDescription className="text-blue-100">
-                Last {recentAttendance.length} check-in records
-              </CardDescription>
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <CardTitle className="text-xl">📋 Check-ins by day</CardTitle>
+                  <CardDescription className="text-blue-100">
+                    {recentAttendance.length === 0
+                      ? "No check-in records"
+                      : selectedCheckInDate
+                        ? `${checkInsForSelectedDay.length} check-in${checkInsForSelectedDay.length !== 1 ? "s" : ""} on ${formatDateLabel(selectedCheckInDate)} · ${checkInDatesDesc.length} day${checkInDatesDesc.length !== 1 ? "s" : ""} total`
+                      : "Pick a date to view check-ins"}
+                  </CardDescription>
+                </div>
+                {checkInDatesDesc.length > 0 && (
+                  <div className="w-full md:w-72">
+                    <Label htmlFor="checkin-date" className="text-blue-100 text-sm">
+                      Date
+                    </Label>
+                    <select
+                      id="checkin-date"
+                      value={selectedCheckInDate}
+                      onChange={(e) => setSelectedCheckInDate(e.target.value)}
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-white/40 bg-white/95 text-gray-900 focus:outline-none focus:ring-2 focus:ring-white/80"
+                    >
+                      {checkInDatesDesc.map((ymd) => (
+                        <option key={ymd} value={ymd}>
+                          {formatDateLabel(ymd)} ({checkInCountByDate.get(ymd) ?? 0})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {recentAttendance.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
                   No check-ins recorded yet.
+                </p>
+              ) : checkInsForSelectedDay.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  No check-ins for this date.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -774,7 +956,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {recentAttendance.map((record) => (
+                      {checkInsForSelectedDay.map((record) => (
                         <tr key={record.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {record.studentName}
